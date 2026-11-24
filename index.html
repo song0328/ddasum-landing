@@ -61,7 +61,7 @@
   .tools button:hover { background:rgba(60,36,18,.7); }
   @media (max-width:600px){ .tools{ right:16px; bottom:96px; } .tools button span{ display:none; } .tools button{ padding:10px; } }
   .tag { position:fixed; right:24px; bottom:18px; z-index:5; font-size:11px; letter-spacing:.18em; color:#8f7a63; }
-  .spacer { height:3152vh; }
+  .spacer { height:2934vh; }
   @media (max-width:600px){ nav{padding:16px;} .tag{right:16px;} .hero{bottom:11vh;} .field{ left:16px; right:16px; bottom:40px; } .field h2{ font-size:clamp(24px,8.2vw,34px); } .end .row button{padding:12px 18px; font-size:14px;} #dots{ right:8px; gap:10px; } }
   @media (prefers-reduced-motion: reduce){ .hint b { animation:none; } .end { transition:none; } }
 </style>
@@ -876,7 +876,7 @@ const FX = (() => {
   // ---------------- per-frame story ----------------
   const _v = new THREE.Vector3(); let boardPosts = 6, lastGK = '';
   function update(sp, t, U){
-    const W = [sm(0.09, 0.12, sp)*(1 - sm(0, 0.1, U[1])), sm(0.9, 1, U[1])*(1 - sm(0, 0.1, U[2])), sm(0.9, 1, U[2])*(1 - sm(0, 0.1, U[3])), sm(0.9, 1, U[3])*(1 - sm(0, 0.1, U[4]))];
+    const W = [sm(0.09, 0.12, sp)*(1 - sm(0.5, 0.7, U[1])), sm(0.9, 1, U[1])*(1 - sm(0.5, 0.7, U[2])), sm(0.9, 1, U[2])*(1 - sm(0.5, 0.7, U[3])), sm(0.9, 1, U[3])*(1 - sm(0.5, 0.7, U[4]))];
     const G = [sm(0.11, 0.152, sp), sm(0.208, 0.256, sp), sm(0.315, 0.362, sp), sm(0.42, 0.503, sp)];
     const gk = G.map(g => Math.round(g*30)).join(','); if (gk !== lastGK){ lastGK = gk; SHD.mark(); }
     [ai, mk, dr, st].forEach((r, i) => { const v = W[i] > 0.01; if (r.visible !== v) SHD.mark(); r.visible = v; });
@@ -910,7 +910,20 @@ const FX = (() => {
       jars.forEach((j, b) => { const h = 0.3*sm(0.45 + b*0.08, 0.85 + b*0.04, f); j.scale.y = Math.max(0.001, h); j.position.y = h/2 + 0.005; });
       const on = sm(0.9, 1, f); pitchMat.color.setRGB(0.12 + 1.0*on, 0.12 + 1.0*on, 0.12 + 1.0*on); }
     boardPosts = st.visible ? Math.max(3, bp + 3) : 6; }
-  return { update, roots, skip, blobs, get boardPosts(){ return boardPosts; } };
+  // carriers: parts standing on a desk ride that desk when the desks rearrange; parts in the air / on walls stay in 'floor' and fold away early
+  const _bx = new THREE.Box3(), _bc = new THREE.Vector3(), _bs = new THREE.Vector3(), _eu = new THREE.Euler();
+  const FLY = new Set([...cards.map(c => c.m), ...posts.map(p => p.m)]);   // flyers end on walls/booth signs: never ride a desk
+  const CAR = roots.map((r, f) => { r.updateMatrixWorld(true); const byDesk = new Map(), floor = new THREE.Group();
+    r.children.slice().forEach(c => { _bx.setFromObject(c); let best = -1;
+      if (!FLY.has(c) && !_bx.isEmpty()){ _bx.getCenter(_bc); r.worldToLocal(_bc); _bx.getSize(_bs); const sz = Math.max(_bs.x, _bs.z)/S;
+        if (sz < 3){ let bd = 1.7; LAYS[f].forEach((p, k) => { const d = Math.hypot(_bc.x - p.x, _bc.z - p.z); if (d < bd){ bd = d; best = k; } }); } }
+      let g = floor; if (best >= 0){ g = byDesk.get(best); if (!g){ g = new THREE.Group(); g.userData.k = best; byDesk.set(best, g); } } g.add(c); });
+    const list = [...byDesk.values()]; list.forEach(g => r.add(g)); r.add(floor); return { list, floor, f }; });
+  const ride = U => CAR.forEach(({ list, floor, f }) => { const ex = U[f+1] || 0; floor.visible = ex < 0.1;
+    list.forEach(g => { const k = g.userData.k, d = desks[k], p = LAYS[f][k]; if (ex <= 0){ g.position.set(0, 0, 0); g.rotation.set(0, 0, 0); return; }
+      const dr = _eu.setFromQuaternion(d.quaternion, 'YXZ').y - p.r, c = Math.cos(dr), sn = Math.sin(dr);
+      g.rotation.set(0, dr, 0); g.position.set(d.position.x - (p.x*c + p.z*sn), 0, d.position.z - (-p.x*sn + p.z*c)); }); });
+  return { update(sp, t, U){ update(sp, t, U); ride(U); }, roots, skip, blobs, get boardPosts(){ return boardPosts; } };
 })();
 
 // ===== teacher desk + report booklet =====
@@ -1264,7 +1277,7 @@ composer.addPass(finish);
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const mouse = { x:0, y:0, sx:0, sy:0 };
 // raw scroll -> timeline: the five layout-change windows get 2.4x the scroll distance, so desks glide slower; every other beat keeps its old length
-const SPK = (() => { const W = [[0.155,0.205],[0.26,0.31],[0.365,0.415],[0.51,0.565],[0.625,0.675]], HK = 4, s = [0, 0.1], r = [0, 0.1]; let acc = 0.1, prev = 0.1;   // HK: field story holds get 4x scroll (stories unfold slowly)
+const SPK = (() => { const W = [[0.155,0.205],[0.26,0.31],[0.365,0.415],[0.51,0.565],[0.625,0.675]], HK = 3.5, s = [0, 0.1], r = [0, 0.1]; let acc = 0.1, prev = 0.1;   // HK: field story holds get 3.5x scroll (stories unfold slowly)
   W.forEach(([a, b]) => { acc += (a - prev)*HK; s.push(a); r.push(acc); acc += (b - a)*2.4; s.push(b); r.push(acc); prev = b; }); acc += 1 - prev; s.push(1); r.push(acc);
   const R = r.map(v => v/acc), map = (x, A, B) => { x = clamp(x, 0, 1); let i = 1; while (i < A.length - 1 && x > A[i]) i++; const w = (x - A[i-1])/((A[i] - A[i-1]) || 1); return B[i-1] + (B[i] - B[i-1])*w; };
   return { toSp: x => map(x, R, s), fromSp: x => map(x, s, R) }; })();
@@ -1409,7 +1422,7 @@ if (!Q.has('notilt')) _acc(mergeStatic(tilt, { directOnly:true, skip:new Set(pan
 desks.forEach(d => Object.values(d.userData.G).forEach(G => _acc(mergeStatic(G, { skip:new Set([ESG.solarCarObj, ESG.windHub]) }))));
 _acc(mergeStatic(EXTRA[2][0], { skip:new Set(hovers) }));
 _acc(mergeStatic(ESG.city, { skip:new Set(ESG.skipMerge) }));
-FX.roots.forEach(r => _acc(mergeStatic(r, { skip:new Set(FX.skip) })));
+FX.roots.forEach(r => r.children.forEach(c => _acc(mergeStatic(c, { skip:new Set(FX.skip) }))));   // merge per carrier (carriers move independently)
 // small continuously-moving props: no real shadow (they forced shadow-map redraws), a soft blob instead
 if (!Q.has('nocs')) [...ESG.cars, ...ESG.turbines, ESG.solarCarObj, ESG.windHub, ...hovers].forEach(o => o.traverse(c => { c.castShadow = false; }));
 // tiny city parts: Lambert instead of Standard (look at this size is the same, far cheaper per pixel)
@@ -1563,8 +1576,8 @@ function tick(){
 
   // ---- props
   desks.forEach((d, k) => { const G = d.userData.G;
-    setW(G[-1], 1 - sm(0.07, 0.10, sp)); setW(G[0], sm(0.09 + k*0.002, 0.12 + k*0.002, sp) * (1 - sm(0, 0.1, U[1])));
-    for (let i=1;i<5;i++) if (G[i]) setW(G[i], sm(0.9 + (k%6)*0.012, 1.0, U[i]) * (1 - sm(0, 0.1, U[i+1]))); });
+    setW(G[-1], 1 - sm(0.07, 0.10, sp)); setW(G[0], sm(0.09 + k*0.002, 0.12 + k*0.002, sp) * (1 - sm(0.5, 0.7, U[1])));
+    for (let i=1;i<5;i++) if (G[i]) setW(G[i], sm(0.9 + (k%6)*0.012, 1.0, U[i]) * (1 - sm(i === 4 ? 0.5 : 0.5, 0.7, U[i+1]))); });
   setW(EXTRA[2][0], sm(0.9, 1, U[2]) * (1 - sm(0, 0.1, U[3])));
   { const w = sm(0.85, 1, U[4]) * (1 - sm(0.5, 0.7, U[5])), g = sm(0.567, 0.617, sp); esgG = w > 0.01 ? g : 0; ESG.update(w, g, t, sm(0, 0.7, U[5])); }
   FX.update(sp, t, U);
