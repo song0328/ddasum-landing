@@ -1455,9 +1455,9 @@ const setW = (g, w) => { if (!g) return; const s = pop(w), v = s > 0.01; if (v !
 let FIN = null; const ensureFinale = () => { if (!FIN) FIN = buildFinale(); };
 // finale prewarm: its shaders are light-independent ShaderMaterials, so compiling them ahead matches the real draw exactly.
 // Done once the first screen has settled (after the 1.8–4.2 s quality benchmark) -> no multi-second freeze when the finale appears.
-const PW = { t:-1 };
+const PREW = { t:-1 };
 const prewarmFinale = () => { ensureFinale(); const objs = [FIN.lanterns, FIN.farDots].filter(Boolean), vis = objs.map(o => o.visible); objs.forEach(o => o.visible = true);
-  const t0 = performance.now(); try { const r = renderer.compileAsync ? renderer.compileAsync(scene, camera) : renderer.compile(scene, camera); if (r && r.then) r.then(() => { PW.t = performance.now() - t0; document.documentElement.dataset.pw = PW.t.toFixed(0); }, () => {}); } catch (e) {} finally { objs.forEach((o, i) => o.visible = vis[i]); } };
+  const t0 = performance.now(); try { const r = renderer.compileAsync ? renderer.compileAsync(scene, camera) : renderer.compile(scene, camera); if (r && r.then) r.then(() => { PREW.t = performance.now() - t0; document.documentElement.dataset.prew = PREW.t.toFixed(0); }, () => {}); } catch (e) {} finally { objs.forEach((o, i) => o.visible = vis[i]); } };
 setTimeout(() => (window.requestIdleCallback || (f => setTimeout(f, 0)))(prewarmFinale, { timeout:2000 }), 4800);
 // adaptive quality
 const QL = { fixed: forced || Q.has('q'), n:0, t0:-1, level: innerWidth < 700 ? 1 : 0 };
