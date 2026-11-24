@@ -1141,7 +1141,7 @@ function drawAtlas(){ const x = atlas.getContext('2d'); x.clearRect(0, 0, atlas.
     x.restore(); } }
 drawAtlas();
 const atlasTex = new THREE.CanvasTexture(atlas); atlasTex.colorSpace = THREE.SRGBColorSpace; atlasTex.anisotropy = 4;
-const LN = Q.has('ln') ? +Q.get('ln') : (innerWidth < 700 ? 560 : 1000);
+const LN = Q.has('ln') ? +Q.get('ln') : (innerWidth < 700 ? 300 : 520);
 const lgeo = new THREE.BoxGeometry(1, 1, 1);
 const aVar = new Float32Array(LN), aDel = new Float32Array(LN), aSeed = new Float32Array(LN);
 const lanterns = new THREE.InstancedMesh(lgeo, null, LN);
