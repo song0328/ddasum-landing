@@ -61,7 +61,7 @@
   .tools button:hover { background:rgba(60,36,18,.7); }
   @media (max-width:600px){ .tools{ right:16px; bottom:96px; } .tools button span{ display:none; } .tools button{ padding:10px; } }
   .tag { position:fixed; right:24px; bottom:18px; z-index:5; font-size:11px; letter-spacing:.18em; color:#8f7a63; }
-  .spacer { height:3587vh; }
+  .spacer { height:3152vh; }
   @media (max-width:600px){ nav{padding:16px;} .tag{right:16px;} .hero{bottom:11vh;} .field{ left:16px; right:16px; bottom:40px; } .field h2{ font-size:clamp(24px,8.2vw,34px); } .end .row button{padding:12px 18px; font-size:14px;} #dots{ right:8px; gap:10px; } }
   @media (prefers-reduced-motion: reduce){ .hint b { animation:none; } .end { transition:none; } }
 </style>
@@ -634,9 +634,10 @@ const ESG = (() => {
 
   const st = sm; let lastG = -1;
   let lastW = -1;
-  function update(w, g, t){ if (Math.abs(w - lastW) > 1e-4){ lastW = w; SHD.mark(); }   // w: ESG visibility 0..1, g: story progress 0..1 (pure function of scroll)
+  function update(w, g, t, ex = 0){ if (Math.abs(w - lastW) > 1e-4 || ex > 0){ lastW = w; SHD.mark(); }   // w: ESG visibility 0..1, g: story progress 0..1 (pure function of scroll)
     city.visible = w > 0.01; sill.visible = w > 0.5; if (!city.visible) return;
     city.scale.setScalar(pop(w));
+    { const e = ex*ex*(3 - 2*ex); city.position.set(4.3*e, 0, 0.1 - 2.2*e); city.rotation.y = -0.9*e; }   // slides off with the desks
     const qg = Math.round(g*60)/60;
     if (qg !== lastG){ lastG = qg; SHD.mark(); drawCityBoard(st(0.55, 0.95, g)); btex.needsUpdate = true;
       B.forEach((b, i) => { const ti = st(0.08 + i*0.04, 0.3 + i*0.04, g); cA.setHex(b[5]).lerp(cG, 0); bIM.setColorAt(i, cG.clone().lerp(cA, ti*0.92 + 0.08));
@@ -1263,7 +1264,7 @@ composer.addPass(finish);
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const mouse = { x:0, y:0, sx:0, sy:0 };
 // raw scroll -> timeline: the five layout-change windows get 2.4x the scroll distance, so desks glide slower; every other beat keeps its old length
-const SPK = (() => { const W = [[0.155,0.205],[0.26,0.31],[0.365,0.415],[0.51,0.565],[0.625,0.675]], HK = 5, s = [0, 0.1], r = [0, 0.1]; let acc = 0.1, prev = 0.1;   // HK: field story holds get 5x scroll (stories unfold slowly)
+const SPK = (() => { const W = [[0.155,0.205],[0.26,0.31],[0.365,0.415],[0.51,0.565],[0.625,0.675]], HK = 4, s = [0, 0.1], r = [0, 0.1]; let acc = 0.1, prev = 0.1;   // HK: field story holds get 4x scroll (stories unfold slowly)
   W.forEach(([a, b]) => { acc += (a - prev)*HK; s.push(a); r.push(acc); acc += (b - a)*2.4; s.push(b); r.push(acc); prev = b; }); acc += 1 - prev; s.push(1); r.push(acc);
   const R = r.map(v => v/acc), map = (x, A, B) => { x = clamp(x, 0, 1); let i = 1; while (i < A.length - 1 && x > A[i]) i++; const w = (x - A[i-1])/((A[i] - A[i-1]) || 1); return B[i-1] + (B[i] - B[i-1])*w; };
   return { toSp: x => map(x, R, s), fromSp: x => map(x, s, R) }; })();
@@ -1565,7 +1566,7 @@ function tick(){
     setW(G[-1], 1 - sm(0.07, 0.10, sp)); setW(G[0], sm(0.09 + k*0.002, 0.12 + k*0.002, sp) * (1 - sm(0, 0.1, U[1])));
     for (let i=1;i<5;i++) if (G[i]) setW(G[i], sm(0.9 + (k%6)*0.012, 1.0, U[i]) * (1 - sm(0, 0.1, U[i+1]))); });
   setW(EXTRA[2][0], sm(0.9, 1, U[2]) * (1 - sm(0, 0.1, U[3])));
-  { const w = sm(0.85, 1, U[4]) * (1 - sm(0, 0.1, U[5])), g = sm(0.567, 0.617, sp); esgG = w > 0.01 ? g : 0; ESG.update(w, g, t); }
+  { const w = sm(0.85, 1, U[4]) * (1 - sm(0.5, 0.7, U[5])), g = sm(0.567, 0.617, sp); esgG = w > 0.01 ? g : 0; ESG.update(w, g, t, sm(0, 0.7, U[5])); }
   FX.update(sp, t, U);
   // blueprint outlines drawn just ahead of each desk
   const showBP = ai > 0 && ai < NL-1 && ua > 0 && ua < 1;
