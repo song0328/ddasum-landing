@@ -1141,7 +1141,7 @@ function drawAtlas(){ const x = atlas.getContext('2d'); x.clearRect(0, 0, atlas.
     x.restore(); } }
 drawAtlas();
 const atlasTex = new THREE.CanvasTexture(atlas); atlasTex.colorSpace = THREE.SRGBColorSpace; atlasTex.anisotropy = 4;
-const LN = Q.has('ln') ? +Q.get('ln') : (innerWidth < 700 ? 650 : 1150);
+const LN = Q.has('ln') ? +Q.get('ln') : (innerWidth < 700 ? 560 : 1000);
 const lgeo = new THREE.BoxGeometry(1, 1, 1);
 const aVar = new Float32Array(LN), aDel = new Float32Array(LN), aSeed = new Float32Array(LN);
 const lanterns = new THREE.InstancedMesh(lgeo, null, LN);
@@ -1153,6 +1153,7 @@ const CEN = [];
   while (L.length < LN && guard++ < 60000){
     const nx = (rnd()*2 - 1)*1.08, ny = -0.12 + rnd()*1.2;
     if (Math.abs(nx) < 0.72 && ny < 0.02) continue;                        // nothing in front of the copy and buttons
+    { const r = Math.hypot(nx/1.08, (ny - 0.45)/0.75), e = clamp((r - 0.45)/0.65, 0, 1); if (rnd() < 0.7*e*e*(3 - 2*e)) continue; }   // thinner toward the edges, rich in the middle
     const d = 15 + Math.pow(rnd(), 0.5)*112;
     dir.set(nx, ny, 0.5).unproject(_pc).sub(_pc.position).normalize();
     const p = _pc.position.clone().addScaledVector(dir, d), x = p.x, y = p.y, z = p.z;
