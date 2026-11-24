@@ -13,7 +13,7 @@
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" crossorigin>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;500;600&family=Noto+Sans+KR:wght@400;500;700&family=Nanum+Pen+Script&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@200;300;500;600&family=Noto+Sans+KR:wght@400;500;700&family=Nanum+Pen+Script&display=swap" rel="stylesheet">
 <style>
   :root { --fg:#fff1dc; --dim:#cdb393; }
   * { box-sizing:border-box; margin:0; padding:0; }
@@ -35,7 +35,11 @@
   .hero h1 { font:300 clamp(44px,5.6vw,84px) 'Noto Serif KR',serif; letter-spacing:.04em; color:#fff4e2; text-shadow:0 0 50px rgba(0,0,0,.7); line-height:1.2; }
   .hero p { margin-top:12px; font-size:clamp(13px,1.15vw,16px); color:var(--dim); letter-spacing:.08em; }
   .field { bottom:34px; left:40px; right:auto; text-align:left; padding:0; opacity:0; }
-  .field h2 { font:500 clamp(28px,3.2vw,46px) 'Noto Serif KR',serif; letter-spacing:.02em; line-height:1.25; text-shadow:0 0 30px rgba(0,0,0,.6); }
+  .field h2 { margin:0; font:200 clamp(34px,4.6vw,66px) 'Noto Serif KR',serif; letter-spacing:.06em; line-height:1.1; background:linear-gradient(180deg,#fff6e8 30%,#e9bf86); -webkit-background-clip:text; background-clip:text; color:transparent; filter:drop-shadow(0 2px 18px rgba(0,0,0,.55)); }
+  .field .idx { display:flex; align-items:center; gap:14px; margin-bottom:12px; font:400 12px 'Noto Sans KR',sans-serif; letter-spacing:.32em; color:#e7c79c; transition:opacity .3s; }
+  .field .idx i { display:block; width:72px; height:1px; background:linear-gradient(90deg,#e7c79c,rgba(231,199,156,.15)); }
+  .field .idx i b { display:block; width:0; height:100%; background:#ffe1b3; }
+  .field.noidx .idx { opacity:0; }
   .shade { position:fixed; left:0; right:0; bottom:0; height:30vh; z-index:2; pointer-events:none; opacity:0; background:linear-gradient(to top, rgba(10,6,3,.78), rgba(10,6,3,.4) 45%, rgba(10,6,3,0)); }
   .end { bottom:10vh; transition:opacity .7s ease, transform .7s ease; }
   .end h2 { font:300 clamp(40px,5vw,76px) 'Noto Serif KR',serif; letter-spacing:.03em; text-shadow:0 0 40px rgba(0,0,0,.8); line-height:1.2; }
@@ -58,7 +62,7 @@
   @media (max-width:600px){ .tools{ right:16px; bottom:96px; } .tools button span{ display:none; } .tools button{ padding:10px; } }
   .tag { position:fixed; right:24px; bottom:18px; z-index:5; font-size:11px; letter-spacing:.18em; color:#8f7a63; }
   .spacer { height:1846vh; }
-  @media (max-width:600px){ nav{padding:16px;} .tag{right:16px;} .hero{bottom:11vh;} .field{ left:16px; right:16px; bottom:40px; } .end .row button{padding:12px 18px; font-size:14px;} #dots{ right:8px; gap:10px; } }
+  @media (max-width:600px){ nav{padding:16px;} .tag{right:16px;} .hero{bottom:11vh;} .field{ left:16px; right:16px; bottom:40px; } .field h2{ font-size:clamp(24px,8.2vw,34px); } .end .row button{padding:12px 18px; font-size:14px;} #dots{ right:8px; gap:10px; } }
   @media (prefers-reduced-motion: reduce){ .hint b { animation:none; } .end { transition:none; } }
 </style>
 </head>
@@ -68,7 +72,7 @@
 <nav><b>따숨교육</b><button class="btn">카카오톡 문의</button></nav>
 <div class="panel hero" id="hero"><h1>따숨교육</h1><p>학교로 찾아가는 진로체험 수업</p></div>
 <div class="shade" id="shade"></div>
-<div class="panel field" id="field" aria-live="polite"><h2 id="fname">인공지능·소프트웨어</h2></div>
+<div class="panel field" id="field" aria-live="polite"><div class="idx" aria-hidden="true"><span id="fnum">01</span><i><b id="fbar"></b></i>05</div><h2 id="fname">인공지능·소프트웨어</h2></div>
 <div class="panel end off" id="end"><h2>당신의 교실로 갑니다.</h2><div class="row"><button class="k">카카오톡으로 문의하기</button><button class="q">견적 요청서 쓰기</button></div></div>
 <div class="tools" id="tools"><button id="bReset" aria-label="되돌리기"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span>되돌리기</span></button><button id="bSnap" aria-label="찍기"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span>찍기</span></button></div>
 <div class="hint" id="hint"><b>↔</b>끌어서 흔들어 보세요</div>
@@ -1363,7 +1367,7 @@ function stepPhys(dt){ cls.updateMatrixWorld(); cls.getWorldQuaternion(_q); cons
 
 // ---------- UI refs
 const hero = document.getElementById('hero'), fieldEl = document.getElementById('field'), endEl = document.getElementById('end'), hint = document.getElementById('hint');
-const fname = document.getElementById('fname'), shadeEl = document.getElementById('shade'), toolsEl = document.getElementById('tools');
+const fname = document.getElementById('fname'), fnum = document.getElementById('fnum'), fbar = document.getElementById('fbar'), shadeEl = document.getElementById('shade'), toolsEl = document.getElementById('tools');
 const dots = [...document.querySelectorAll('#dots button')];
 const DOTP = [0.13, 0.235, 0.34, 0.465, 0.595, 0.75];
 dots.forEach((b, i) => b.addEventListener('click', () => { const max = document.documentElement.scrollHeight - innerHeight; scrollTo({ top:SPK.fromSp(DOTP[i])*max, behavior:RM ? 'auto' : 'smooth' }); }));
@@ -1613,8 +1617,10 @@ function tick(){
   hero.style.opacity = (1 - sm(0.05, 0.08, sp)).toFixed(3); if (hero.style.animation !== 'none' && (t > 1.4 || sp > 0.02)) hero.style.animation = 'none';
   const arrA = sm(0.675, 0.695, sp) * (1 - sm(0.805, 0.82, sp));
   let capText, capA;
-  if (arrA > 0.01){ capText = '창의력을 발휘해 보세요'; capA = arrA; }
-  else { const fieldIdx = ai === 0 ? 0 : (ai >= 5 ? 4 : (ua < 0.5 ? ai-1 : ai)); capText = FIELDS[fieldIdx].n; capA = aiIn * (ai ? 1 - sm(0.1, 0.25, ua)*(1 - sm(0.75, 0.9, ua)) : 1) * (1 - sm(0.62, 0.66, sp)); }
+  if (arrA > 0.01){ capText = '창의력을 발휘해 보세요'; capA = arrA; fieldEl.classList.add('noidx'); }
+  else { const fieldIdx = ai === 0 ? 0 : (ai >= 5 ? 4 : (ua < 0.5 ? ai-1 : ai)); capText = FIELDS[fieldIdx].n; capA = aiIn * (ai ? 1 - sm(0.1, 0.25, ua)*(1 - sm(0.75, 0.9, ua)) : 1) * (1 - sm(0.62, 0.66, sp)); fieldEl.classList.remove('noidx');
+    const num = '0' + (fieldIdx + 1); if (fnum.textContent !== num) fnum.textContent = num;
+    fbar.style.width = (Math.min(1, Math.max(0, (sp - 0.08) / 0.57)) * 100).toFixed(1) + '%'; }
   if (fname.textContent !== capText) fname.textContent = capText;
   fieldEl.style.opacity = capA.toFixed(3); fieldEl.style.transform = `translateY(${(1-capA)*10}px)`;
   shadeEl.style.opacity = (Math.max(aiIn * (1 - sm(0.62, 0.66, sp)), arrA)).toFixed(3);
