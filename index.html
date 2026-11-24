@@ -7,7 +7,12 @@
 <meta name="description" content="학교로 찾아가는 진로체험 수업. 유리 상자 속 교실이 다섯 분야의 수업으로 바뀝니다.">
 <meta property="og:title" content="따숨교육 — 당신의 교실로 갑니다">
 <meta property="og:description" content="학교로 찾아가는 진로체험 수업">
-<!-- OG image: add <meta property="og:image" content="…/og-finale.png"> once the gallery thumbnail (finale with many classroom boxes) is rendered -->
+<meta property="og:image" content="https://song0328.github.io/ddasum-landing/og-finale.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:url" content="https://song0328.github.io/ddasum-landing/">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#0d0805">
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" crossorigin>
@@ -60,10 +65,14 @@
   .tools button { display:flex; align-items:center; gap:6px; font:500 13px 'Noto Sans KR',sans-serif; color:#fff1dc; background:rgba(30,18,10,.55); border:1px solid rgba(255,220,180,.3); border-radius:999px; padding:9px 14px; cursor:pointer; backdrop-filter:blur(6px); }
   .tools button:hover { background:rgba(60,36,18,.7); }
   @media (max-width:600px){ .tools{ right:16px; bottom:96px; } .tools button span{ display:none; } .tools button{ padding:10px; } }
-  .tag { position:fixed; right:24px; bottom:18px; z-index:5; font-size:11px; letter-spacing:.18em; color:#8f7a63; }
+  .tag { position:fixed; right:24px; bottom:18px; z-index:5; font-size:10.5px; letter-spacing:.04em; color:#8f7a63; opacity:0; transition:opacity .7s ease; pointer-events:none; }
+  .tag.on { opacity:.85; }
+  .cue { position:fixed; left:50%; bottom:22px; transform:translateX(-50%); z-index:4; pointer-events:none; font-size:11px; letter-spacing:.3em; color:#e8cfae; text-align:center; opacity:0; transition:opacity .6s ease; }
+  .cue i { display:block; width:1px; height:26px; margin:8px auto 0; background:linear-gradient(#e8cfae, rgba(232,207,174,0)); animation:cue 1.8s ease-in-out infinite; transform-origin:top; }
+  @keyframes cue { 0%{ transform:scaleY(0); opacity:1; } 60%{ transform:scaleY(1); opacity:1; } 100%{ transform:scaleY(1); opacity:0; } }
   .spacer { height:2934vh; }
-  @media (max-width:600px){ nav{padding:16px;} .tag{right:16px;} .hero{bottom:11vh;} .field{ left:16px; right:16px; bottom:40px; } .field h2{ font-size:clamp(24px,8.2vw,34px); } .end .row button{padding:12px 18px; font-size:14px;} #dots{ right:8px; gap:10px; } }
-  @media (prefers-reduced-motion: reduce){ .hint b { animation:none; } .end { transition:none; } }
+  @media (max-width:600px){ nav{padding:16px;} .tag{ left:16px; right:16px; bottom:10px; text-align:center; font-size:9.5px; line-height:1.5; } .cue{ bottom:14px; } .hero{bottom:11vh;} .field{ left:16px; right:16px; bottom:40px; } .field h2{ font-size:clamp(24px,8.2vw,34px); } .end .row button{padding:12px 18px; font-size:14px;} #dots{ right:8px; gap:10px; } }
+  @media (prefers-reduced-motion: reduce){ .hint b { animation:none; } .cue i { animation:none; } .end { transition:none; } }
 </style>
 </head>
 <body>
@@ -75,9 +84,10 @@
 <div class="panel field" id="field" aria-live="polite"><div class="idx" aria-hidden="true"><span id="fnum">01</span><i><b id="fbar"></b></i>05</div><h2 id="fname">인공지능·소프트웨어</h2></div>
 <div class="panel end off" id="end"><h2>당신의 교실로 갑니다.</h2><div class="row"><button class="k">카카오톡으로 문의하기</button><button class="q">견적 요청서 쓰기</button></div></div>
 <div class="tools" id="tools"><button id="bReset" aria-label="되돌리기"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg><span>되돌리기</span></button><button id="bSnap" aria-label="찍기"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg><span>찍기</span></button></div>
+<div class="cue" id="cue">스크롤<i></i></div>
 <div class="hint" id="hint"><b>↔</b>끌어서 흔들어 보세요</div>
 <div id="dots"><button aria-label="인공지능·소프트웨어"></button><button aria-label="메이커"></button><button aria-label="드론·로봇"></button><button aria-label="창업캠프"></button><button aria-label="탄소중립·ESG"></button><button aria-label="직접 배치와 끝"></button></div>
-<div class="tag">시안 G1 · 16차 · 11/24-h</div>
+<div class="tag" id="credit">3D three.js (MIT) · 물리 Rapier (Apache-2.0) · 글꼴 Noto Serif KR · Noto Sans KR · Nanum Pen Script (SIL OFL)</div>
 <div class="spacer"></div>
 
 <script type="importmap">
@@ -96,7 +106,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
-const Q = new URLSearchParams(location.search);
+const Q = (() => { const q = new URLSearchParams(location.search); return (q.has('dev') || /^(localhost|127\.)/.test(location.hostname)) ? q : new URLSearchParams(); })();   // test options: local / ?dev only
 const DBG = (Q.get('dbg') || '').split(',');
 
 const canvas = document.getElementById('gl');
@@ -1387,6 +1397,10 @@ function stepPhys(dt){ cls.updateMatrixWorld(); cls.getWorldQuaternion(_q); cons
 const hero = document.getElementById('hero'), fieldEl = document.getElementById('field'), endEl = document.getElementById('end'), hint = document.getElementById('hint');
 const fname = document.getElementById('fname'), fnum = document.getElementById('fnum'), fbar = document.getElementById('fbar'), shadeEl = document.getElementById('shade'), toolsEl = document.getElementById('tools');
 const dots = [...document.querySelectorAll('#dots button')];
+const KAKAO = 'https://pf.kakao.com/_jRxlBX/chat', QUOTE = 'https://docs.google.com/forms/d/e/1FAIpQLSfXxIwojs1e68o13vw5TYuBgWHk3KNvNl4tQ9zMYZgfzyxezQ/viewform';
+document.querySelectorAll('nav .btn, .end .k').forEach(b => b.addEventListener('click', () => window.open(KAKAO, '_blank', 'noopener')));
+document.querySelectorAll('.end .q').forEach(b => b.addEventListener('click', () => window.open(QUOTE, '_blank', 'noopener')));
+const cueEl = document.getElementById('cue'), creditEl = document.getElementById('credit');
 const DOTP = [0.13, 0.235, 0.34, 0.465, 0.595, 0.75];
 dots.forEach((b, i) => b.addEventListener('click', () => { const max = document.documentElement.scrollHeight - innerHeight; scrollTo({ top:SPK.fromSp(DOTP[i])*max, behavior:RM ? 'auto' : 'smooth' }); }));
 // ---------- timeline (pure functions of the smoothed scroll value)
@@ -1476,7 +1490,7 @@ const prewarmFinale = () => { ensureFinale(); const objs = [FIN.lanterns, FIN.fa
   const t0 = performance.now(); try { const r = renderer.compileAsync ? renderer.compileAsync(scene, camera) : renderer.compile(scene, camera); if (r && r.then) r.then(() => { PREW.t = performance.now() - t0; document.documentElement.dataset.prew = PREW.t.toFixed(0); }, () => {}); } catch (e) {} finally { objs.forEach((o, i) => o.visible = vis[i]); } };
 setTimeout(() => (window.requestIdleCallback || (f => setTimeout(f, 0)))(prewarmFinale, { timeout:2000 }), 4800);
 // adaptive quality
-const QL = { fixed: forced || Q.has('q'), n:0, t0:-1, level: innerWidth < 700 ? 1 : 0 };
+const QL = { fixed: forced || Q.has('q'), n:0, t0:-1, d:[], level: innerWidth < 700 ? 1 : 0 };
 function applyQuality(lv){ QL.level = lv; if (lv >= 1){ renderer.setPixelRatio(Math.min(devicePixelRatio, lv >= 2 ? 0.85 : 1.0)); composer.setSize(innerWidth, innerHeight); [lamp, winLight].forEach(l => { l.shadow.mapSize.set(512,512); if (l.shadow.map){ l.shadow.map.dispose(); l.shadow.map = null; } }); }
   if (lv >= 2){ bloom.enabled = false; dust.visible = false; } document.documentElement.dataset.quality = lv; }
 if (QL.level) applyQuality(QL.level);
@@ -1497,15 +1511,19 @@ if (Q.has('rip')) setTimeout(() => { const [rx, ry] = Q.get('rip').split(',').ma
 const kinPose = new Array(ND).fill(null).map(() => ({ x:0, z:0, r:0, tuck:0 }));
 
 document.addEventListener('visibilitychange', () => { if (!document.hidden) last = clock.getElapsedTime(); });
+const BOOTW = { done:false, ok:0, t0:performance.now(), last:performance.now() };
 function tick(){
   if (document.hidden && !Q.has('nohid')){ requestAnimationFrame(tick); return; }
+  if (!BOOTW.done){ const now = performance.now(), d = now - BOOTW.last; BOOTW.last = now; BOOTW.ok = d < 40 ? BOOTW.ok + 1 : 0;
+    if ((BOOTW.ok >= 6 && frame > 3) || now - BOOTW.t0 > 3500){ BOOTW.done = true; document.getElementById('boot').classList.add('gone'); document.documentElement.dataset.ttf = Math.round(now); }
+    clock.start(); last = 0; }   // intro time stays at 0 until steady
   const t = clock.getElapsedTime(); const dt = Math.min(1/20, Math.max(1/240, t - last)); last = t; frame++;
   if (forced){ sp = progress; spV = 0; } else { const w = RM ? 16 : 6.5, n = Math.max(1, Math.ceil(dt*240)), h = dt/n;
     for (let j=0;j<n;j++){ spV += (w*w*(progress - sp) - 2*w*spV)*h; sp += spV*h; } if (Math.abs(progress - sp) < 1e-6 && Math.abs(spV) < 1e-6){ sp = progress; spV = 0; } }
   mouse.sx += (mouse.x - mouse.sx)*0.05; mouse.sy += (mouse.y - mouse.sy)*0.05;
   const intro = RM ? 1 : (forced ? (Q.has('intro') ? +Q.get('intro') : 1) : sm(0.6, 2.6, t));
   // adaptive quality: measure ~2 s after the entrance
-  if (!QL.fixed && t > 1.8 && t < 4.2){ if (QL.t0 < 0) QL.t0 = t; QL.n++; } else if (!QL.fixed && QL.t0 > 0 && QL.n > 0){ const fps = QL.n/(t - QL.t0); QL.n = 0; QL.t0 = -2; document.documentElement.dataset.fps = fps.toFixed(0); if (fps < 28) applyQuality(2); else if (fps < 45) applyQuality(Math.max(QL.level, 1)); }
+  if (!QL.fixed && BOOTW.done && t > 1.8 && t < 4.2){ QL.d.push(dt); } else if (!QL.fixed && QL.d.length > 20){ const m = QL.d.sort((x, y) => x - y)[QL.d.length >> 1], fps = 1/m; QL.d = []; document.documentElement.dataset.fps = fps.toFixed(0); if (fps < 28) applyQuality(2); else if (fps < 45) applyQuality(Math.max(QL.level, 1)); }
 
   // ---- timeline
   const U = new Array(NL).fill(0); for (let i=1;i<NL;i++) U[i] = clamp((sp - WIN[i][0])/(WIN[i][1]-WIN[i][0]), 0, 1);
@@ -1607,7 +1625,7 @@ function tick(){
   lantern.position.y = Math.sin(t*0.7)*0.05*(1-beat)*(RM ? 0 : 1) - (1-intro)*0.12 - (1-appr)*8.3; lantern.position.z = -(1-appr)*29; lantern.position.x = -(1-appr)*2.0;   // far end of the camera's line of sight
   renderer.toneMappingExposure = L(0.35, 1.0, ent < 50 ? sm(0.8, 1.2, ent) : intro);
   const asp = innerWidth/innerHeight;
-  const dHero = 5.3 * Math.max(1, 0.86/asp);
+  const dHero = 5.3 * Math.max(1, (asp < 1 ? 1.1 : 0.86)/asp);
   camH.set(mouse.sx*0.35, Math.sin(0.2)*dHero + 0.15 - mouse.sy*0.15, Math.cos(0.2)*dHero); lkH.set(0, asp < 1 ? -0.05 : -0.3, 0);
   const port = clamp((1 - asp)/0.55, 0, 1), fovB = 31 + port*22;   // 0 on landscape, 1 on a typical phone
   const hfB = 2*Math.atan(Math.tan(fovB*Math.PI/360)*asp), Rfit = (BW*0.54)/Math.tan(hfB/2);
@@ -1648,7 +1666,8 @@ function tick(){
   if (fname.textContent !== capText) fname.textContent = capText;
   fieldEl.style.opacity = capA.toFixed(3); fieldEl.style.transform = `translateY(${(1-capA)*10}px)`;
   shadeEl.style.opacity = (Math.max(aiIn * (1 - sm(0.62, 0.66, sp)), arrA)).toFixed(3);
-  endEl.classList.toggle('off', sp < 0.925);
+  endEl.classList.toggle('off', sp < 0.925); creditEl.classList.toggle('on', sp > 0.95);
+  cueEl.style.opacity = (t > 3.2 && sp < 0.015 && !drag.on) ? '0.8' : '0';
   const di = sp < 0.18 ? 0 : sp < 0.285 ? 1 : sp < 0.39 ? 2 : sp < 0.537 ? 3 : sp < 0.65 ? 4 : 5;
   dots.forEach((b, i) => b.classList.toggle('on', i === di));
   // tiny hint: near the box on the first screen, near a desk in the arrange section
@@ -1658,13 +1677,12 @@ function tick(){
   hint.style.opacity = (hintHero || hintArr) ? (hintUsed ? 0.45 : 0.95) : 0;
   if (hintHero){ tmp.set(BW/2, BH/2 + 0.12, BD/2); tilt.localToWorld(tmp); } else { let kb = 0; for (let k=1;k<ND;k++) if (desks[k].position.z > desks[kb].position.z) kb = k; tmp.set(desks[kb].position.x, DH + 1.2, desks[kb].position.z); cls.localToWorld(tmp); }
   tmp.project(camera); const hx = (tmp.x*.5+.5)*innerWidth, hy = (-tmp.y*.5+.5)*innerHeight;
-  hint.style.left = Math.min(innerWidth-90, Math.max(90, hx)) + 'px'; hint.style.top = clamp(hy - 40, 76, innerHeight*0.8) + 'px';
+  if (innerWidth < 600 && hintHero){ hint.style.left = innerWidth/2 + 'px'; hint.style.top = innerHeight*0.26 + 'px'; } else { hint.style.left = Math.min(innerWidth-90, Math.max(90, hx)) + 'px'; hint.style.top = clamp(hy - 40, 76, innerHeight*0.8) + 'px'; }
 
   if (DBG.includes('nobox')) lantern.visible = false;
   if (Q.has('shake')) document.documentElement.dataset.frame = frame;
   if (!Q.has('noblob')) BLOB.update(); ADPR.step(t);
   renderer.info.reset(); composer.render(); PERF.frame(t);
-  if (frame === 2){ document.getElementById('boot').classList.add('gone'); document.documentElement.dataset.ttf = Math.round(performance.now()); }
   requestAnimationFrame(tick);
 }
 
