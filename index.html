@@ -1141,7 +1141,7 @@ function drawAtlas(){ const x = atlas.getContext('2d'); x.clearRect(0, 0, atlas.
     x.restore(); } }
 drawAtlas();
 const atlasTex = new THREE.CanvasTexture(atlas); atlasTex.colorSpace = THREE.SRGBColorSpace; atlasTex.anisotropy = 4;
-const LN = Q.has('ln') ? +Q.get('ln') : (innerWidth < 700 ? 300 : 520);
+const LN = Q.has('ln') ? +Q.get('ln') : (innerWidth < 700 ? 500 : 900);
 const lgeo = new THREE.BoxGeometry(1, 1, 1);
 const aVar = new Float32Array(LN), aDel = new Float32Array(LN), aSeed = new Float32Array(LN);
 const lanterns = new THREE.InstancedMesh(lgeo, null, LN);
@@ -1153,7 +1153,7 @@ const CEN = [];
   while (L.length < LN && guard++ < 60000){
     const nx = (rnd()*2 - 1)*1.08, ny = -0.12 + rnd()*1.2;
     if (Math.abs(nx) < 0.72 && ny < 0.02) continue;                        // nothing in front of the copy and buttons
-    { const r = Math.hypot(nx/1.08, (ny - 0.45)/0.75), e = clamp((r - 0.45)/0.65, 0, 1); if (rnd() < 0.7*e*e*(3 - 2*e)) continue; }   // thinner toward the edges, rich in the middle
+    { const r = Math.hypot(nx/1.08, (ny - 0.45)/0.75), e = clamp((r - 0.35)/0.6, 0, 1); if (rnd() < 0.88*e*e*(3 - 2*e)) continue; }   // rich in the middle, clearly thinner toward the edges
     const d = 15 + Math.pow(rnd(), 0.5)*112;
     dir.set(nx, ny, 0.5).unproject(_pc).sub(_pc.position).normalize();
     const p = _pc.position.clone().addScaledVector(dir, d), x = p.x, y = p.y, z = p.z;
@@ -1614,7 +1614,7 @@ function tick(){
   lkB.set(0, -0.3 + port*0.08, -0.04 + port*0.06);
   camB.set(lkB.x + Math.sin(az)*Math.cos(elv)*R, lkB.y + Math.sin(elv)*R, lkB.z + Math.cos(az)*Math.cos(elv)*R);
   const dF = 23 * Math.max(1, 0.86/asp*0.8);
-  camF.set(Math.sin(t*0.05)*0.8 + mouse.sx*1.6, Math.sin(0.06)*dF + 0.15 - mouse.sy*0.9, Math.cos(0.06)*dF); lkF.set(0, asp < 1 ? 3.2 : 2.2, 0);
+  camF.set(Math.sin(t*0.05)*0.8 + mouse.sx*0.9, Math.sin(0.06)*dF + 0.15 - mouse.sy*0.5, Math.cos(0.06)*dF); lkF.set(mouse.sx*2.6, (asp < 1 ? 3.2 : 2.2) - mouse.sy*1.3, 0);   // view drifts toward the cursor
   camera.position.lerpVectors(camH, camB, beat).lerp(camF, fin); lk.lerpVectors(lkH, lkB, beat).lerp(lkF, fin);
   camera.lookAt(lk); camera.fov = L(L(32, fovB, beat), 40 + port*8, fin); camera.updateProjectionMatrix();
   if (FIN){ const U = FIN.lanternMat.uniforms, want = fin > 0.9 && hoverIn ? 1 : 0; hovA += (want - hovA)*(1 - Math.exp(-dt*5)); U.uHov.value = hovA; if (Q.has('hov')) document.documentElement.dataset.hov = hovA.toFixed(3) + ' t=' + t.toFixed(2);
