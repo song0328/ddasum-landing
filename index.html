@@ -111,9 +111,10 @@ const DBG = (Q.get('dbg') || '').split(',');
 
 const canvas = document.getElementById('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, innerWidth < 700 ? 1.25 : 1.5)); renderer.setSize(innerWidth, innerHeight);
+const MOB = Math.min(innerWidth, innerHeight) < 700 && matchMedia('(pointer: coarse)').matches || innerWidth < 600;   // phones
+renderer.setPixelRatio(Math.min(devicePixelRatio, MOB ? 1.5 : 1.5)); renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
-renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false; if (!Q.has('notrs')) renderer.transmissionResolutionScale = 0.5;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = MOB ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false; if (!Q.has('notrs')) renderer.transmissionResolutionScale = 0.5;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(32, innerWidth/innerHeight, 0.05, 260);
 const sm = (a,b,x) => { const t = Math.min(1, Math.max(0, (x-a)/(b-a))); return t*t*(3-2*t); };
@@ -257,6 +258,7 @@ const glass = new THREE.MeshPhysicalMaterial({ color:0xffe6c2, transmission:1, r
   attenuationColor:new THREE.Color(0xffa64a), attenuationDistance:1.0, clearcoat:1, clearcoatRoughness:0.03,
   iridescence:0.3, iridescenceIOR:1.35, iridescenceThicknessRange:[200,500], specularIntensity:1, envMapIntensity:2.4 });
 if (DBG.includes('nodisp')) glass.dispersion = 0;
+if (MOB){ Object.assign(glass, { transmission:0, dispersion:0, iridescence:0, transparent:true, opacity:0.16, depthWrite:false }); glass.needsUpdate = true; }
 if (DBG.includes('noiri')) glass.iridescence = 0;
 const lidGlass = glass.clone(); lidGlass.attenuationDistance = 1.6; lidGlass.envMapIntensity = 1.5; lidGlass.thickness = 0.12;
 const pane = (w,h,d,m=glass) => new THREE.Mesh(new RoundedBoxGeometry(w,h,d,4,Math.min(w,h,d)*0.48), m);
@@ -1151,7 +1153,7 @@ function drawAtlas(){ const x = atlas.getContext('2d'); x.clearRect(0, 0, atlas.
     x.restore(); } }
 drawAtlas();
 const atlasTex = new THREE.CanvasTexture(atlas); atlasTex.colorSpace = THREE.SRGBColorSpace; atlasTex.anisotropy = 4;
-const LN = Q.has('ln') ? +Q.get('ln') : (innerWidth < 700 ? 650 : 1250);
+const LN = Q.has('ln') ? +Q.get('ln') : (innerWidth < 700 ? 240 : 1250);
 const lgeo = new THREE.BoxGeometry(1, 1, 1);
 const aVar = new Float32Array(LN), aDel = new Float32Array(LN), aSeed = new Float32Array(LN);
 const lanterns = new THREE.InstancedMesh(lgeo, null, LN);
@@ -1161,10 +1163,10 @@ const CEN = [];
 { const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), dir = new THREE.Vector3(), L = []; let guard = 0;
   // sample uniformly on SCREEN (not in world) so the frame fills evenly; depth biased far, where boxes are small and cheap
   while (L.length < LN && guard++ < 60000){
-    const core = rnd() < 0.42;   // ~40% extra boxes packed into the middle of the cloud
+    const narrow = innerWidth < 700, core = !narrow && rnd() < 0.42;   // phones: an even, open field (a narrow screen turns a dense core into a lump)   // ~40% extra boxes packed into the middle of the cloud
     const nx = core ? (rnd() + rnd() - 1)*0.75 : (rnd()*2 - 1)*1.08, ny = core ? 0.42 + (rnd() + rnd() - 1)*0.5 : -0.12 + rnd()*1.2;
     if (Math.abs(nx) < 0.72 && ny < 0.02) continue;                        // nothing in front of the copy and buttons
-    if (!core){ const r = Math.hypot(nx/1.08, (ny - 0.45)/0.75), e = clamp((r - 0.35)/0.6, 0, 1); if (rnd() < 0.88*e*e*(3 - 2*e)) continue; }   // rich in the middle, clearly thinner toward the edges
+    if (!core && !narrow){ const r = Math.hypot(nx/1.08, (ny - 0.45)/0.75), e = clamp((r - 0.35)/0.6, 0, 1); if (rnd() < 0.88*e*e*(3 - 2*e)) continue; }   // rich in the middle, clearly thinner toward the edges
     const d = 15 + Math.pow(rnd(), 0.5)*112;
     dir.set(nx, ny, 0.5).unproject(_pc).sub(_pc.position).normalize();
     const p = _pc.position.clone().addScaledVector(dir, d), x = p.x, y = p.y, z = p.z;
@@ -1462,7 +1464,7 @@ const SHD = (() => { let marked = true, lastSig = NaN, tail = 1;
     want(force, frame){ const s = sig(), moved = force || marked || !(Math.abs(s - lastSig) < 1e-5); lastSig = s; marked = false;
       if (moved){ tail = 1; return PERF.ema < 17.5 || frame % 2 === 0; } if (tail > 0){ tail--; return true; } return false; } }; })();
 // continuous adaptive resolution (EMA of frame time); the discrete quality levels stay as the last resort
-const ADPR = (() => { const cap = renderer.getPixelRatio(), floor = Math.max(0.6, cap*0.67); let cur = cap, slow = 0, fast = 0, lt = 0;
+const ADPR = (() => { const cap = renderer.getPixelRatio(), floor = MOB ? Math.min(cap, 1.0) : Math.max(0.6, cap*0.67); let cur = cap, slow = 0, fast = 0, lt = 0;
   return { step(t){ if (QL.fixed) return; const dt = t - lt; lt = t; if (!(dt > 0 && dt < 0.25)) return; const ms = PERF.ema; const still = Math.abs(progress - sp) < 0.0015 && Math.abs(spV) < 0.002;
     if (ms > 20){ slow += dt; fast = 0; } else if (ms < 12){ fast += dt; slow = 0; } else { slow = 0; fast = 0; }
     if ((still ? slow > 1 : slow > 0.5) && cur > floor + 1e-3){ cur = Math.max(floor, cur - 0.1); renderer.setPixelRatio(cur); composer.setPixelRatio(cur); slow = 0; }
@@ -1491,7 +1493,7 @@ const prewarmFinale = () => { ensureFinale(); const objs = [FIN.lanterns, FIN.fa
 setTimeout(() => (window.requestIdleCallback || (f => setTimeout(f, 0)))(prewarmFinale, { timeout:2000 }), 4800);
 // adaptive quality
 const QL = { fixed: forced || Q.has('q'), n:0, t0:-1, d:[], level: innerWidth < 700 ? 1 : 0 };
-function applyQuality(lv){ QL.level = lv; if (lv >= 1){ renderer.setPixelRatio(Math.min(devicePixelRatio, lv >= 2 ? 0.85 : 1.0)); composer.setSize(innerWidth, innerHeight); [lamp, winLight].forEach(l => { l.shadow.mapSize.set(512,512); if (l.shadow.map){ l.shadow.map.dispose(); l.shadow.map = null; } }); }
+function applyQuality(lv){ QL.level = lv; if (lv >= 1){ const pr = Math.min(devicePixelRatio, MOB ? (lv >= 2 ? 1.0 : 1.5) : (lv >= 2 ? 0.85 : 1.0)); renderer.setPixelRatio(pr); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); [lamp, winLight].forEach(l => { l.shadow.mapSize.set(512,512); if (l.shadow.map){ l.shadow.map.dispose(); l.shadow.map = null; } }); }
   if (lv >= 2){ bloom.enabled = false; dust.visible = false; } document.documentElement.dataset.quality = lv; }
 if (QL.level) applyQuality(QL.level);
 if (Q.has('arrange') && forced) setTimeout(() => {}, 0);
@@ -1629,7 +1631,7 @@ function tick(){
   camH.set(mouse.sx*0.35, Math.sin(0.2)*dHero + 0.15 - mouse.sy*0.15, Math.cos(0.2)*dHero); lkH.set(0, asp < 1 ? -0.05 : -0.3, 0);
   const port = clamp((1 - asp)/0.55, 0, 1), fovB = 31 + port*22;   // 0 on landscape, 1 on a typical phone
   const hfB = 2*Math.atan(Math.tan(fovB*Math.PI/360)*asp), Rfit = (BW*0.54)/Math.tan(hfB/2);
-  const R = asp < 1 ? Rfit : 2.8 * Math.max(1, 1.08/asp), az = mouse.sx*0.05 + 0.06*Math.sin(sp*Math.PI*7), elv = 0.47 + port*0.42 + 0.03*Math.sin(sp*Math.PI*5) + mouse.sy*0.03;
+  const R = asp < 1 ? Rfit : 2.8 * Math.max(1, 1.08/asp), az = mouse.sx*0.05 + 0.06*Math.sin(sp*Math.PI*7), elv = 0.47 + port*0.13 + 0.03*Math.sin(sp*Math.PI*5) + mouse.sy*0.03;
   lkB.set(0, -0.3 + port*0.08, -0.04 + port*0.06);
   camB.set(lkB.x + Math.sin(az)*Math.cos(elv)*R, lkB.y + Math.sin(elv)*R, lkB.z + Math.cos(az)*Math.cos(elv)*R);
   const dF = 23 * Math.max(1, 0.86/asp*0.8);
