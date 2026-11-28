@@ -6,4 +6,6 @@ Parallax 랜딩톤(제1회) 출품작의 공개 배포본입니다. https://song
 - 원본과 작업 기록은 비공개 저장소 `song0328/hackathon`의 `hackathons/parallax-landingthon-2026/`에 있습니다. 원본(`최종안/index.html`)을 고친 뒤 이 저장소로 복사해 push합니다.
 - 다음 작업 1순위: 폰 화면에서 잘 보이게(렉·카메라 각도·끝 장면). 자세한 건 원본 폴더의 `생각노트.md`.
 
-사용한 외부 자료: three.js (MIT), Rapier (Apache-2.0), Noto Serif KR · Noto Sans KR · Nanum Pen Script (SIL OFL).
+11/28: 첫 장면 바닥·흐린 반사·접촉 그림자, 교실 마루/책상 재질과 조명을 조정했습니다. 표면 지도는 HTML 안에 포함됩니다. 끝 장면 상자 수는 PC 750·폰 144개입니다.
+
+사용한 외부 자료: three.js (MIT), Rapier (Apache-2.0), ambientCG WoodFloor051 · Concrete030 (CC0), Noto Serif KR · Noto Sans KR · Nanum Pen Script (SIL OFL).
