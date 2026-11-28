@@ -225,9 +225,10 @@ const stageShadow = new THREE.Mesh(new THREE.PlaneGeometry(3.0,2.2),new THREE.Me
 stageShadow.rotation.x=-Math.PI/2; stageShadow.position.y=GY+.008; stageShadow.renderOrder=-3; scene.add(stageShadow);
 const drawStageReflection=stageMirror.onBeforeRender.bind(stageMirror);
 const stageCentre=new THREE.Vector3();
-let stageReflectionAt=-Infinity;
+let stageReflectionAt=-Infinity, shadowRefreshFrame=-1;
 stageMirror.onBeforeRender=(r,s,c)=>{
   if(c!==camera)return;
+  if(MOB&&shadowRefreshFrame===frame)return;   // spread expensive phone render passes across frames
   const now=performance.now(); if(now-stageReflectionAt<(MOB?90:45))return;
   stageReflectionAt=now;
   const shadowVisible=stageShadow.visible, savedPaneMaterials=panes.map(p=>p.material); stageShadow.visible=false;
@@ -717,8 +718,10 @@ const ESG = (() => {
 
   const st = sm; let lastG = -1;
   let lastW = -1;
-  function update(w, g, t, ex = 0){ if (Math.abs(w - lastW) > 1e-4 || ex > 0){ lastW = w; SHD.mark(); }   // w: ESG visibility 0..1, g: story progress 0..1 (pure function of scroll)
-    city.visible = w > 0.01; sill.visible = w > 0.5; if (!city.visible) return;
+  let lastExit = 0;
+  function update(w, g, t, ex = 0){ const visible=w>0.01;
+    if(Math.abs(w-lastW)>1e-4||visible!==city.visible||(MOB?(visible&&Math.abs(ex-lastExit)>1e-4):ex>0)){lastW=w;lastExit=ex;SHD.mark();}
+    city.visible = visible; sill.visible = w > 0.5; if (!city.visible) return;
     city.scale.setScalar(pop(w));
     { const e = ex*ex*(3 - 2*ex); city.position.set(4.3*e, 0, 0.1 - 2.2*e); city.rotation.y = -0.9*e; }   // slides off with the desks
     const qg = Math.round(g*60)/60;
@@ -1373,6 +1376,15 @@ const forced = Q.has('p'); if (forced) progress = parseFloat(Q.get('p')) || 0;
 let sp = progress, spV = 0;
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 const drag = { on:false, x0:0, y0:0, dx:0, dy:0, id:null };
+const shakeTouch = { id:null, x:0, y:0 };
+function touchShakeIntent(dx,dy){
+  if(Math.max(Math.abs(dx),Math.abs(dy))<10)return 'pending';
+  return Math.abs(dx)>Math.abs(dy)*1.25?'shake':'scroll';
+}
+function beginShake(e,x=e.clientX,y=e.clientY){
+  shakeTouch.id=null;drag.on=true;drag.id=e.pointerId;drag.x0=x;drag.y0=y;drag.dx=e.clientX-x;drag.dy=e.clientY-y;
+  canvas.setPointerCapture(e.pointerId);canvas.classList.add('grabbing');hintUsed=true;if(world)enterPhys();
+}
 const inArrange = () => sp > 0.68 && sp < 0.82;
 const canDrag = () => sp < 0.66 && !RM;
 function hits(cx, cy){ ndc.set(cx/innerWidth*2-1, -(cy/innerHeight)*2+1); ray.setFromCamera(ndc, camera); return ray.intersectObject(hitBox, false).length > 0; }
@@ -1391,19 +1403,28 @@ const grab = { on:false, type:'', k:-1, id:null, off:{ x:0, z:0 }, x0:0, y0:0, t
 function rotateObj(type, k, da){ const P = ARR[k]; moveDesk(k, { x:P.x, z:P.z, r:P.r + da }, grab.on ? 0.9 : 1); }
 canvas.addEventListener('pointerdown', e => {
   if (inArrange()){
-    if (grab.on && e.pointerId !== grab.id && e.pointerType === 'touch'){ grab.t2 = { id:e.pointerId, x:e.clientX, y:e.clientY }; grab.a2 = null; return; }
+    if (grab.on && e.pointerId !== grab.id && e.pointerType === 'touch'){ grab.t2 = { id:e.pointerId, x:e.clientX, y:e.clientY }; grab.a2 = Math.atan2(e.clientY-grab.py,e.clientX-grab.px);grab.moved=true;return; }
     const pk = pickObj(e.clientX, e.clientY); if (!pk) return; const P = pk.type === 'desk' ? ARR[pk.k] : ARRC[pk.k];
-    Object.assign(grab, { on:true, type:pk.type, k:pk.k, id:e.pointerId, off:{ x:P.x - pk.h.x, z:P.z - pk.h.z }, x0:e.clientX, y0:e.clientY, t0:performance.now(), moved:false, t2:null });
+    Object.assign(grab, { on:true, type:pk.type, k:pk.k, id:e.pointerId, off:{ x:P.x - pk.h.x, z:P.z - pk.h.z }, x0:e.clientX, y0:e.clientY, px:e.clientX,py:e.clientY,t0:performance.now(), moved:false, t2:null,a2:null });
     canvas.setPointerCapture(e.pointerId); canvas.classList.add('grabbing'); hintUsed = true; return; }
   if (!canDrag() || (e.pointerType !== 'mouse' && !hits(e.clientX, e.clientY))) return;
-  drag.on = true; drag.id = e.pointerId; drag.x0 = e.clientX; drag.y0 = e.clientY; drag.dx = drag.dy = 0; canvas.setPointerCapture(e.pointerId); canvas.classList.add('grabbing'); hintUsed = true; if (world) enterPhys(); });
-canvas.addEventListener('touchstart', e => { const t = e.touches[0]; if (!t) return; if ((inArrange() && (grab.on || pickObj(t.clientX, t.clientY))) || (canDrag() && hits(t.clientX, t.clientY))) e.preventDefault(); }, { passive:false });
+  if(MOB&&e.pointerType==='touch'){
+    if(shakeTouch.id===null&&!drag.on){shakeTouch.id=e.pointerId;shakeTouch.x=e.clientX;shakeTouch.y=e.clientY;}
+    return;
+  }
+  beginShake(e); });
+canvas.addEventListener('touchstart', e => { const t = e.touches[0]; if (!t) return; if ((inArrange() && (grab.on || pickObj(t.clientX, t.clientY))) || (!MOB && canDrag() && hits(t.clientX, t.clientY))) e.preventDefault(); }, { passive:false });
 canvas.addEventListener('wheel', e => { if (!grab.on) return; e.preventDefault(); grab.moved = true; const P = ARR[grab.k]; moveDesk(grab.k, { ...P, r:snapAng(P.r + (e.deltaY > 0 ? 1 : -1)*R30) }, 0.9); }, { passive:false });
 addEventListener('pointermove', e => { mouse.x = e.clientX/innerWidth*2-1; mouse.y = e.clientY/innerHeight*2-1;
+  if(e.pointerId===shakeTouch.id){
+    const intent=touchShakeIntent(e.clientX-shakeTouch.x,e.clientY-shakeTouch.y);
+    if(intent==='shake')beginShake(e,shakeTouch.x,shakeTouch.y);
+    else if(intent==='scroll')shakeTouch.id=null;
+  }
   if (grab.on && grab.t2 && e.pointerId === grab.t2.id){ grab.t2.x = e.clientX; grab.t2.y = e.clientY; }
   if (grab.on && (e.pointerId === grab.id || (grab.t2 && e.pointerId === grab.t2.id))){
     if (e.pointerId === grab.id){ if (Math.hypot(e.clientX - grab.x0, e.clientY - grab.y0) > 6) grab.moved = true; grab.px = e.clientX; grab.py = e.clientY; }
-    if (grab.t2 && grab.px !== undefined){ const a = Math.atan2(grab.t2.y - grab.py, grab.t2.x - grab.px); if (grab.a2 !== null){ const da = angDiff(grab.a2, a); if (Math.abs(da) > 0.004) rotateObj(grab.type, grab.k, -da); } grab.a2 = a; }
+    if (grab.t2 && grab.px !== undefined){ const a = Math.atan2(grab.t2.y - grab.py, grab.t2.x - grab.px); if (grab.a2 !== null){ const da = angDiff(grab.a2, a); if (Math.abs(da) > 0.004){grab.moved=true;rotateObj(grab.type, grab.k, -da);} } grab.a2 = a; }
     if (e.pointerId === grab.id && grab.moved){ const h = floorHit(e.clientX, e.clientY, grab.type === 'desk' ? DH : 0.55);
       if (h){ const T = { x:h.x + grab.off.x, z:h.z + grab.off.z };
         const k = grab.k, others = ARR.map((p, j) => j === k ? null : p);
@@ -1414,14 +1435,16 @@ addEventListener('pointermove', e => { mouse.x = e.clientX/innerWidth*2-1; mouse
     return; }
   if (drag.on && e.pointerId === drag.id){ drag.dx = e.clientX - drag.x0; drag.dy = e.clientY - drag.y0; }
   else if (e.pointerType === 'mouse') canvas.classList.toggle('grab', (inArrange() && !!pickObj(e.clientX, e.clientY)) || canDrag()); });
-function releaseGrab(){ const { k } = grab; grab.on = false; grab.t2 = null; canvas.classList.remove('grabbing');
+function releaseGrab(cancelled=false){ const { k } = grab; grab.on = false; grab.t2 = null; canvas.classList.remove('grabbing');
+  if(cancelled){ghost.pose=null;return;}
   if (!grab.moved && performance.now() - grab.t0 < 450){ const P = ARR[k]; moveDesk(k, { ...P, r:snapAng(P.r) + R30 }); ghost.pose = null; return; }   // tap: rotate 30°
   const s = findSnap(k, ARR[k], ARR.map((p, j) => j === k ? null : p), MAG.d, MAG.a); ghost.pose = null;
   if (s){ Object.assign(glide, { k, from:{ ...ARR[k] }, to:s, t0:clock.getElapsedTime() }); return; }
   const P = ARR[k]; if (!moveDesk(k, { ...P, r:snapAng(P.r) })) moveDesk(k, { ...P });          // free placement: 30° steps, full footprint
   if (Object.values(ARR).some((d, j) => j !== k && satPen(poly(ARR[k]), poly(d)) > 0.01)) moveDesk(k, { ...ARR[k] }); }
-const endDrag = e => { if (grab.on){ if (grab.t2 && e && e.pointerId === grab.t2.id){ grab.t2 = null; return; } if (!e || e.pointerId === grab.id){ releaseGrab(); return; } }
-  if (!drag.on) return; drag.on = false; drag.dx = drag.dy = 0; canvas.classList.remove('grabbing'); };
+const endDrag = e => { if(!e||e.pointerId===shakeTouch.id)shakeTouch.id=null;
+  if (grab.on){ if (grab.t2 && e && e.pointerId === grab.t2.id){ grab.t2 = null; return; } if (!e || e.pointerId === grab.id){ releaseGrab(!!e&&e.type==='pointercancel'); return; } }
+  if (!drag.on || (e&&e.pointerId!==drag.id)) return; drag.on = false; drag.id=null; drag.dx = drag.dy = 0; canvas.classList.remove('grabbing'); };
 addEventListener('pointerup', endDrag); addEventListener('pointercancel', endDrag);
 // tools: reset, snapshot (PNG of the canvas only)
 function takeSnap(){ composer.render(); return canvas.toDataURL('image/png'); }
@@ -1440,16 +1463,25 @@ function initPhysics(){ world = new RAPIER.World({ x:0, y:-16, z:0 }); world.tim
   fixed(7.5,0.2,5.5, 0,-0.2,0); fixed(0.2,4,5.5, -6.42,4,0); fixed(0.2,4,5.5, 6.65,4,0); fixed(7.5,4,0.2, 0,4,-4.62); fixed(7.5,4,0.2, 0,4,4.9); fixed(7.5,0.2,5.5, 0,6.7,0);
   fixed(TEACH.w/2, DH/2, TEACH.d/2, TEACH.x, DH/2, TEACH.z);
   const pts = new Float32Array(TV.flatMap(([x,z]) => [x,0.02,z, x,DH,z]));
-  for (let k=0;k<ND;k++){ const b = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setCanSleep(false).setLinearDamping(0.25).setAngularDamping(0.5));
+  for (let k=0;k<ND;k++){ const b = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setCanSleep(MOB).setLinearDamping(0.25).setAngularDamping(0.5));
     world.createCollider(RAPIER.ColliderDesc.convexHull(pts).setDensity(1.0).setFriction(0.12).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min).setRestitution(0.05), b); PB.desk.push(b);
-    const c = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setCanSleep(false).setLinearDamping(0.2).setAngularDamping(0.3));
+    const c = world.createRigidBody(RAPIER.RigidBodyDesc.dynamic().setCanSleep(MOB).setLinearDamping(0.2).setAngularDamping(0.3));
     world.createCollider(RAPIER.ColliderDesc.cuboid(0.31,0.46,0.3).setTranslation(0,0.47,0.03).setDensity(0.45).setFriction(0.3).setFrictionCombineRule(RAPIER.CoefficientCombineRule.Min).setRestitution(0.1), c); PB.chair.push(c); }
   document.documentElement.dataset.physics = "rapier@f" + frame; }
 if (!Q.has('nophys')) import('https://cdn.jsdelivr.net/npm/@dimforge/rapier3d-compat@0.14.0/+esm')
   .then(async m => { const R = m.default || m; await R.init(); RAPIER = R; initPhysics(); })
   .catch(err => { console.warn('Rapier unavailable, spring fallback', err); document.documentElement.dataset.physics = 'spring'; });
 const _p = new THREE.Vector3(), _q = new THREE.Quaternion(), _s = new THREE.Vector3();
-function enterPhys(){ if (!world) return; if (phys.mode === 'phys') { phys.relT = 0; PB.desk.concat(PB.chair).forEach(b => b.wakeUp()); return; }
+const physicsWakeGravity={x:NaN,y:NaN,z:NaN};
+function shouldWakePhysics(previous,gravity,arranging){
+  const dx=gravity.x-previous.x,dy=gravity.y-previous.y,dz=gravity.z-previous.z;
+  if(!Number.isFinite(previous.x)||arranging||dx*dx+dy*dy+dz*dz>.0025){
+    previous.x=gravity.x;previous.y=gravity.y;previous.z=gravity.z;return true;
+  }
+  return false;
+}
+function enterPhys(){ if (!world) return; if(MOB)physicsWakeGravity.x=NaN;
+  if (phys.mode === 'phys') { phys.relT = 0; PB.desk.concat(PB.chair).forEach(b => b.wakeUp()); return; }
   desks.forEach((d, k) => { d.updateMatrix(); const b = PB.desk[k]; b.setTranslation({ x:d.position.x, y:d.position.y, z:d.position.z }, true); b.setRotation(d.quaternion, true); b.setLinvel({x:0,y:0,z:0}, true); b.setAngvel({x:0,y:0,z:0}, true);
     _p.copy(chairFree[k].position); _q.copy(chairFree[k].quaternion);
     const c = PB.chair[k]; c.setTranslation({ x:_p.x, y:_p.y + 0.002, z:_p.z }, true); c.setRotation(_q, true); c.setLinvel({x:0,y:0,z:0}, true); c.setAngvel({x:0,y:0,z:0}, true); });
@@ -1462,7 +1494,8 @@ function stepPhys(dt){ cls.updateMatrixWorld(); cls.getWorldQuaternion(_q); cons
     if (tgt){ const vx = clamp((tgt.x - tp.x)*14, -9, 9), vz = clamp((tgt.z - tp.z)*14, -9, 9); b.setLinvel({ x:vx, y:Math.min(0, b.linvel().y), z:vz }, true);
       const yaw = yawOf(new THREE.Quaternion(...Object.values(b.rotation()))); const tr = arr.relT >= 0 && arr.snap ? arr.snap.r : yaw; b.setAngvel({ x:0, y:clamp(angDiff(yaw, tr)*12, -8, 8), z:0 }, true);
       const rq = b.rotation(); const up = new THREE.Vector3(0,1,0).applyQuaternion(new THREE.Quaternion(rq.x, rq.y, rq.z, rq.w)); if (up.y < 0.995){ b.setRotation(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0), yaw), true); } } }
-  if (drag.on || arr.k >= 0) PB.desk.concat(PB.chair).forEach(b => b.wakeUp());
+  const wake=MOB?shouldWakePhysics(physicsWakeGravity,world.gravity,arr.k>=0):(drag.on||arr.k>=0);
+  if(wake)PB.desk.concat(PB.chair).forEach(b=>b.wakeUp());
   physAcc += dt; let n = 0; while (physAcc >= world.timestep && n < 3){ world.step(); physAcc -= world.timestep; n++; } if (n === 3) physAcc = 0;
   desks.forEach((d, k) => { const t = PB.desk[k].translation(), r = PB.desk[k].rotation(); d.position.set(t.x, t.y, t.z); d.quaternion.set(r.x, r.y, r.z, r.w);
     const ct = PB.chair[k].translation(), cr = PB.chair[k].rotation(); chairFree[k].position.set(ct.x, ct.y, ct.z); chairFree[k].quaternion.set(cr.x, cr.y, cr.z, cr.w); }); }
@@ -1529,11 +1562,28 @@ const BLOB = (() => { const c = document.createElement('canvas'); c.width = c.he
   return { update(){ let n = 0; cls.updateMatrixWorld();
     items.forEach(it => { if (!shown(it.o)) return; it.o.getWorldPosition(v); cls.worldToLocal(v); it.o.getWorldScale(sc); const k = it.s*(sc.x/S); m4.compose(v.set(v.x, it.y(), v.z), q, sc.set(k, 1, k)); im.setMatrixAt(n++, m4); });
     im.count = n; im.visible = n > 0; im.instanceMatrix.needsUpdate = true; } }; })();
-// shadow map dirty tracking: refresh only while furniture/props actually change, max every 2nd frame, plus one refresh after things settle
+// Phone shadows keep pending changes, including height/tilt, within a fixed render budget.
+function shadowPoseChanged(poses,cache,tilt,shake){
+  let changed=false,index=0;
+  const read=value=>{if(!Number.isFinite(cache[index])||Math.abs(cache[index]-value)>1e-4){changed=true;cache[index]=value;}index++;};
+  for(const o of poses){const p=o.position,q=o.quaternion;read(p.x);read(p.y);read(p.z);read(q.x);read(q.y);read(q.z);read(q.w);read(o.scale.x);}
+  read(tilt.rotation.x);read(tilt.rotation.y);read(tilt.rotation.z);read(shake.position.x);read(shake.position.y);read(shake.position.z);
+  return changed;
+}
+function mobileShadowFrame(state,moved,now){
+  if(moved){state.pending=true;state.tail=true;}
+  if(!state.pending&&!state.tail)return false;
+  if(now-state.last<100)return false;
+  state.last=now;state.pending=false;if(!moved)state.tail=false;return true;
+}
+// Desktop keeps its existing dirty tracking and cadence.
 const SHD = (() => { let marked = true, lastSig = NaN, tail = 1;
+  const poses=[...desks,...chairFree],cache=new Float64Array(poses.length*8+6).fill(NaN),mobile={last:-Infinity,pending:true,tail:true};
   const sig = () => { let a = 0; for (let k=0;k<ND;k++){ const d = desks[k], c = chairFree[k]; a += d.position.x*1.3 + d.position.z*1.7 + d.quaternion.y*2.1 + d.quaternion.w*0.7 + c.position.x*1.1 + c.position.z*1.9 + c.quaternion.y*2.3 + c.scale.x*0.9 + (k+1)*(d.position.x - c.position.z)*0.013; } return a; };
   return { mark(){ marked = true; },
-    want(force, frame){ const s = sig(), moved = force || marked || !(Math.abs(s - lastSig) < 1e-5); lastSig = s; marked = false;
+    want(force, frame){
+      if(MOB){const moved=shadowPoseChanged(poses,cache,tilt,shake)||force||marked;marked=false;return mobileShadowFrame(mobile,moved,performance.now());}
+      const s = sig(), moved = force || marked || !(Math.abs(s - lastSig) < 1e-5); lastSig = s; marked = false;
       if (moved){ tail = 1; return PERF.ema < 17.5 || frame % 2 === 0; } if (tail > 0){ tail--; return true; } return false; } }; })();
 // continuous adaptive resolution (EMA of frame time); the discrete quality levels stay as the last resort
 const ADPR = (() => { const cap = renderer.getPixelRatio(), floor = MOB ? Math.min(cap, 1.0) : Math.max(0.6, cap*0.67); let cur = cap, slow = 0, fast = 0, lt = 0;
@@ -1565,7 +1615,11 @@ const prewarmFinale = () => { ensureFinale(); const objs = [FIN.lanterns, FIN.fa
 setTimeout(() => (window.requestIdleCallback || (f => setTimeout(f, 0)))(prewarmFinale, { timeout:2000 }), 4800);
 // adaptive quality
 const QL = { fixed: forced || Q.has('q'), n:0, t0:-1, d:[], level: innerWidth < 700 ? 1 : 0 };
-function applyQuality(lv){ QL.level = lv; if (lv >= 1){ const pr = Math.min(devicePixelRatio, MOB ? (lv >= 2 ? 1.0 : 1.5) : (lv >= 2 ? 0.85 : 1.0)); renderer.setPixelRatio(pr); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); [lamp, winLight].forEach(l => { l.shadow.mapSize.set(512,512); if (l.shadow.map){ l.shadow.map.dispose(); l.shadow.map = null; } }); }
+function applyQuality(lv){ QL.level = lv; if (lv >= 1){ const pr = Math.min(devicePixelRatio, MOB ? (lv >= 2 ? 1.0 : 1.5) : (lv >= 2 ? 0.85 : 1.0)); renderer.setPixelRatio(pr); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); [lamp, winLight].forEach(l => {
+    if(l.shadow.mapSize.x===512&&l.shadow.mapSize.y===512)return;
+    l.shadow.mapSize.set(512,512);if(l.shadow.map){l.shadow.map.dispose();l.shadow.map=null;}
+    SHD.mark();renderer.shadowMap.needsUpdate=true;
+  }); }
   if (lv >= 2){ bloom.enabled = false; dust.visible = false; } document.documentElement.dataset.quality = lv; }
 if (QL.level) applyQuality(QL.level);
 if (Q.has('arrange') && forced) setTimeout(() => {}, 0);
@@ -1592,7 +1646,7 @@ function tick(){
     if ((BOOTW.ok >= 6 && frame > 3) || now - BOOTW.t0 > 3500){ BOOTW.done = true; document.getElementById('boot').classList.add('gone'); document.documentElement.dataset.ttf = Math.round(now); }
     clock.start(); last = 0; }   // intro time stays at 0 until steady
   const t = clock.getElapsedTime(); const dt = Math.min(1/20, Math.max(1/240, t - last)); last = t; frame++;
-  if (forced){ sp = progress; spV = 0; } else { const w = RM ? 16 : 6.5, n = Math.max(1, Math.ceil(dt*240)), h = dt/n;
+  if (forced){ sp = progress; spV = 0; } else { const w = MOB ? 30 : (RM ? 16 : 6.5), n = Math.max(1, Math.ceil(dt*240)), h = dt/n;
     for (let j=0;j<n;j++){ spV += (w*w*(progress - sp) - 2*w*spV)*h; sp += spV*h; } if (Math.abs(progress - sp) < 1e-6 && Math.abs(spV) < 1e-6){ sp = progress; spV = 0; } }
   mouse.sx += (mouse.x - mouse.sx)*0.05; mouse.sy += (mouse.y - mouse.sy)*0.05;
   const intro = RM ? 1 : (forced ? (Q.has('intro') ? +Q.get('intro') : 1) : sm(0.6, 2.6, t));
@@ -1731,7 +1785,7 @@ function tick(){
   glintMat.uniforms.uT.value = t; dustMat.uniforms.uT.value = t; finish.uniforms.uT.value = t;
   edgeMat.opacity = L(0.2, 0.45, beat) * il;
 
-  if (Q.has('shall') || SHD.want(frame < 4 || phys.mode !== 'kin' || grab.on || glide.k >= 0, frame)){ renderer.shadowMap.needsUpdate = true; PERF.shadow(); }
+  if (Q.has('shall') || SHD.want(frame < 4 || (!MOB && (phys.mode !== 'kin' || grab.on || glide.k >= 0)), frame)){ renderer.shadowMap.needsUpdate = true;shadowRefreshFrame=frame;PERF.shadow(); }
 
   // ---- UI (text budget: hero 2 lines, field names, 「창의력을 발휘해 보세요」, 「끌어 보세요」, finale)
   hero.style.opacity = (1 - sm(0.05, 0.08, sp)).toFixed(3); if (hero.style.animation !== 'none' && (t > 1.4 || sp > 0.02)) hero.style.animation = 'none';
@@ -1750,7 +1804,7 @@ function tick(){
   dots.forEach((b, i) => b.classList.toggle('on', i === di));
   // tiny hint: near the box on the first screen, near a desk in the arrange section
   const hintHero = canDrag() && !drag.on && sp < 0.06 && intro > 0.9, hintArr = inArrange() && !grab.on && arrA > 0.5;
-  const hk = hintArr ? 'a' : 'h'; if (hint.dataset.k !== hk){ hint.dataset.k = hk; hint.innerHTML = hintArr ? '<b>↔</b>끌기 · 눌러서 돌리기' : '<b>↔</b>끌어서 흔들어 보세요'; }
+  const hk = hintArr ? 'a' : 'h'; if (hint.dataset.k !== hk){ hint.dataset.k = hk; hint.innerHTML = hintArr ? '<b>↔</b>끌기 · 눌러서 돌리기' : (MOB ? '<b>↔</b>가로로 끌어 흔들어 보세요' : '<b>↔</b>끌어서 흔들어 보세요'); }
   toolsEl.style.opacity = arrA.toFixed(3); toolsEl.style.pointerEvents = arrA > 0.5 ? 'auto' : 'none';
   hint.style.opacity = (hintHero || hintArr) ? (hintUsed ? 0.45 : 0.95) : 0;
   if (hintHero){ tmp.set(BW/2, BH/2 + 0.12, BD/2); tilt.localToWorld(tmp); } else { let kb = 0; for (let k=1;k<ND;k++) if (desks[k].position.z > desks[kb].position.z) kb = k; tmp.set(desks[kb].position.x, DH + 1.2, desks[kb].position.z); cls.localToWorld(tmp); }
