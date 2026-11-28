@@ -105,6 +105,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { FXAAShader } from 'three/addons/shaders/FXAAShader.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
 
 const Q = (() => { const q = new URLSearchParams(location.search); return (q.has('dev') || /^(localhost|127\.)/.test(location.hostname)) ? q : new URLSearchParams(); })();   // test options: local / ?dev only
@@ -113,7 +114,7 @@ const DBG = (Q.get('dbg') || '').split(',');
 const canvas = document.getElementById('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
 const MOB = Math.min(innerWidth, innerHeight) < 700 && matchMedia('(pointer: coarse)').matches || innerWidth < 600;   // phones
-renderer.setPixelRatio(Math.min(devicePixelRatio, MOB ? 1.5 : 1.5)); renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, MOB ? 1.75 : 1.5)); renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = MOB ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap; renderer.shadowMap.autoUpdate = false; if (!Q.has('notrs')) renderer.transmissionResolutionScale = 0.5;
 const scene = new THREE.Scene();
@@ -1342,6 +1343,15 @@ return { lanterns, lanternMat, farDots, fdMat, drawAtlas, atlasTex, CEN };
 
 // ---------- post
 const composer = new EffectComposer(renderer);
+function mobileAaSamples(color,depth,max){
+  return max>=2&&color.includes(2)&&depth.includes(2)?2:0;
+}
+let mobileAA=null,mobileAaCount=0;
+if(MOB){
+  try{const gl=renderer.getContext();mobileAaCount=mobileAaSamples(gl.getInternalformatParameter(gl.RENDERBUFFER,gl.RGBA16F,gl.SAMPLES),gl.getInternalformatParameter(gl.RENDERBUFFER,gl.DEPTH_COMPONENT24,gl.SAMPLES),renderer.capabilities.maxSamples);}catch{}
+  composer.renderTarget1.samples=composer.renderTarget2.samples=mobileAaCount;
+}
+document.documentElement.dataset.aa=MOB?(mobileAaCount?'msaa2':'fxaa'):'desktop';
 composer.addPass(new RenderPass(scene, camera));
 // sanitize: kill NaN/Inf pixels (from glass transmission at bevels) before bloom smears them into squares
 composer.addPass(new ShaderPass({ uniforms:{ tDiffuse:{value:null} },
@@ -1354,6 +1364,11 @@ composer.addPass(new ShaderPass({ uniforms:{ tDiffuse:{value:null} },
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth/2, innerHeight/2), 0.32, 0.55, 1.05); composer.addPass(bloom);
 const BLOOM_K = 1.0;   // (4-mip bloom was tried: it lost the wide halo around the lamps and lid, so all 5 mips stay)
 composer.addPass(new OutputPass());
+if(MOB&&!mobileAaCount){
+  mobileAA=new ShaderPass(FXAAShader);
+  mobileAA.setSize=(width,height)=>mobileAA.uniforms.resolution.value.set(1/Math.max(1,Math.floor(width)),1/Math.max(1,Math.floor(height)));
+  composer.addPass(mobileAA);
+}
 const finish = new ShaderPass({ uniforms:{ tDiffuse:{value:null}, uT:{value:0} },
   vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
   fragmentShader:`uniform sampler2D tDiffuse; uniform float uT; varying vec2 vUv;
@@ -1586,11 +1601,29 @@ const SHD = (() => { let marked = true, lastSig = NaN, tail = 1;
       const s = sig(), moved = force || marked || !(Math.abs(s - lastSig) < 1e-5); lastSig = s; marked = false;
       if (moved){ tail = 1; return PERF.ema < 17.5 || frame % 2 === 0; } if (tail > 0){ tail--; return true; } return false; } }; })();
 // continuous adaptive resolution (EMA of frame time); the discrete quality levels stay as the last resort
-const ADPR = (() => { const cap = renderer.getPixelRatio(), floor = MOB ? Math.min(cap, 1.0) : Math.max(0.6, cap*0.67); let cur = cap, slow = 0, fast = 0, lt = 0;
-  return { step(t){ if (QL.fixed) return; const dt = t - lt; lt = t; if (!(dt > 0 && dt < 0.25)) return; const ms = PERF.ema; const still = Math.abs(progress - sp) < 0.0015 && Math.abs(spV) < 0.002;
-    if (ms > 20){ slow += dt; fast = 0; } else if (ms < 12){ fast += dt; slow = 0; } else { slow = 0; fast = 0; }
-    if ((still ? slow > 1 : slow > 0.5) && cur > floor + 1e-3){ cur = Math.max(floor, cur - 0.1); renderer.setPixelRatio(cur); composer.setPixelRatio(cur); slow = 0; }
-    if (still && fast > 2 && cur < cap - 1e-3){ cur = Math.min(cap, cur + 0.1); renderer.setPixelRatio(cur); composer.setPixelRatio(cur); fast = 0; } } }; })();
+function mobileDprBounds(nativeDpr,level){
+  const cap=Math.min(nativeDpr,level>=2?1.5:1.75);return {cap,floor:Math.min(cap,1.25)};
+}
+function adaptiveDprStep(state,env){
+  const {current,cap,floor,ms,dt,still,mobile}=env;
+  if(!(dt>0&&dt<.25)||!Number.isFinite(ms))return current;
+  let next=Math.max(floor,Math.min(cap,current));
+  if(ms>(mobile?24:20)){state.slow+=dt;state.fast=0;}
+  else if(ms<(mobile?18.5:12)){state.fast=mobile&&!still?0:state.fast+dt;state.slow=0;}
+  else{state.slow=state.fast=0;}
+  if(state.slow>(still?1:.5)&&next>floor+1e-3){next=Math.max(floor,next-(mobile?.125:.1));state.slow=0;}
+  if(still&&state.fast>(mobile?.8:2)&&next<cap-1e-3){next=Math.min(cap,next+(mobile?.125:.1));state.fast=0;}
+  return next;
+}
+const ADPR = (() => { const cap=renderer.getPixelRatio(),state={slow:0,fast:0};let lt=0;
+  return {step(t){if(QL.fixed)return;const dt=t-lt;lt=t;
+    const desktopCap=Math.min(cap,QL.level>=2?.85:(QL.level>=1?1:cap));
+    const bounds=MOB?mobileDprBounds(devicePixelRatio,QL.level):{cap:desktopCap,floor:Math.min(desktopCap,Math.max(.6,desktopCap*.67))};
+    const still=Math.abs(progress-sp)<.0015&&Math.abs(spV)<.002&&(!MOB||(!drag.on&&!grab.on&&phys.mode==='kin'));
+    const current=renderer.getPixelRatio(),next=adaptiveDprStep(state,{...bounds,current,dt,ms:PERF.ema,still,mobile:MOB});
+    if(Math.abs(next-current)>1e-3){renderer.setPixelRatio(next);composer.setPixelRatio(next);}
+  }};
+})();
 document.documentElement.dataset.opt = `merged ${OPT.removed}→${OPT.added}`;
 
 // ---------- ?perf HUD + window.__perf (fps, frame ms, draw calls, triangles, pixel ratio, shadow updates/s)
@@ -1615,7 +1648,7 @@ const prewarmFinale = () => { ensureFinale(); const objs = [FIN.lanterns, FIN.fa
 setTimeout(() => (window.requestIdleCallback || (f => setTimeout(f, 0)))(prewarmFinale, { timeout:2000 }), 4800);
 // adaptive quality
 const QL = { fixed: forced || Q.has('q'), n:0, t0:-1, d:[], level: innerWidth < 700 ? 1 : 0 };
-function applyQuality(lv){ QL.level = lv; if (lv >= 1){ const pr = Math.min(devicePixelRatio, MOB ? (lv >= 2 ? 1.0 : 1.5) : (lv >= 2 ? 0.85 : 1.0)); renderer.setPixelRatio(pr); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); [lamp, winLight].forEach(l => {
+function applyQuality(lv){ QL.level = lv; if (lv >= 1){ const pr = Math.min(devicePixelRatio, MOB ? (lv >= 2 ? 1.25 : 1.75) : (lv >= 2 ? 0.85 : 1.0)); renderer.setPixelRatio(pr); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); [lamp, winLight].forEach(l => {
     if(l.shadow.mapSize.x===512&&l.shadow.mapSize.y===512)return;
     l.shadow.mapSize.set(512,512);if(l.shadow.map){l.shadow.map.dispose();l.shadow.map=null;}
     SHD.mark();renderer.shadowMap.needsUpdate=true;
