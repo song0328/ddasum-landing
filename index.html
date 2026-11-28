@@ -1224,28 +1224,28 @@ function drawAtlas(){ const x = atlas.getContext('2d'); x.clearRect(0, 0, atlas.
     x.restore(); } }
 drawAtlas();
 const atlasTex = new THREE.CanvasTexture(atlas); atlasTex.colorSpace = THREE.SRGBColorSpace; atlasTex.anisotropy = 4;
-const LN = Q.has('ln') ? +Q.get('ln') : (innerWidth < 700 ? 144 : 750);   // 40% fewer throughout the finale, leaving more space between classrooms
+const LN = Q.has('ln') ? +Q.get('ln') : (innerWidth < 700 ? 48 : 240);   // open space throughout the finale, including its centre
 const lgeo = new THREE.BoxGeometry(1, 1, 1);
 const aVar = new Float32Array(LN), aDel = new Float32Array(LN), aSeed = new Float32Array(LN);
 const lanterns = new THREE.InstancedMesh(lgeo, null, LN);
 const _pc = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 500), _pv = new THREE.Vector3();
 { const as = innerWidth/innerHeight, d0 = 23*Math.max(1, 0.86/as*0.8); _pc.position.set(0, Math.sin(0.06)*d0 + 0.15, Math.cos(0.06)*d0); _pc.lookAt(0, as < 1 ? 3.2 : 2.2, 0); _pc.updateMatrixWorld(); }
 const CEN = [];
-{ const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), dir = new THREE.Vector3(), L = []; let guard = 0;
-  // sample uniformly on SCREEN (not in world) so the frame fills evenly; depth biased far, where boxes are small and cheap
+{ const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), dir = new THREE.Vector3(), L = [], screenAspect=innerWidth/innerHeight, halfHeightTan=Math.tan(20*Math.PI/180); let guard = 0;
+  // Spread the reduced field across the screen, leaving room around each projected box.
   while (L.length < LN && guard++ < 60000){
-    const narrow = innerWidth < 700, core = !narrow && rnd() < 0.42;   // phones: an even, open field (a narrow screen turns a dense core into a lump)   // ~40% extra boxes packed into the middle of the cloud
-    const nx = core ? (rnd() + rnd() - 1)*0.75 : (rnd()*2 - 1)*1.08, ny = core ? 0.42 + (rnd() + rnd() - 1)*0.5 : -0.12 + rnd()*1.2;
+    const nx = (rnd()*2 - 1)*1.08, ny = -0.12 + rnd()*1.2;
     if (Math.abs(nx) < 0.72 && ny < 0.02) continue;                        // nothing in front of the copy and buttons
-    if (!core && !narrow){ const r = Math.hypot(nx/1.08, (ny - 0.45)/0.75), e = clamp((r - 0.35)/0.6, 0, 1); if (rnd() < 0.88*e*e*(3 - 2*e)) continue; }   // rich in the middle, clearly thinner toward the edges
     const d = 15 + Math.pow(rnd(), 0.5)*112;
+    const sc = (0.55 + rnd()*0.5) * (1 + Math.max(0, d - 40)/120), footprint=sc/(d*halfHeightTan);
+    if (L.some(o=>Math.hypot((nx-o.nx)*screenAspect,ny-o.ny)<.025+.85*(footprint+o.footprint))) continue;
     dir.set(nx, ny, 0.5).unproject(_pc).sub(_pc.position).normalize();
     const p = _pc.position.clone().addScaledVector(dir, d), x = p.x, y = p.y, z = p.z;
     if (Math.hypot(x, (y-0.5)*1.4, z) < 3.4) continue;      // keep the hero box clear
     if (z > 4 && Math.abs(x) < 5 && y < 4) continue;        // keep the camera path clear
     if (z > -34 && Math.abs(x) < 9 && y < 0.2) continue;   // keep the final copy area clear
     { const pv = p.clone().project(_pc); if (pv.z < 1 && Math.abs(pv.x) < 0.7 && pv.y < -0.14) continue; }
-    L.push({ p, d, sc: (0.55 + rnd()*0.5) * (1 + Math.max(0, d - 40)/120) }); }   // far boxes a little larger so the far field reads as packed
+    L.push({ p, d, sc, nx, ny, footprint }); }
   L.sort((A, B) => A.d - B.d);   // front-to-back: opaque boxes behind are rejected by depth before shading
   L.forEach((o, i) => { const { p, sc } = o, x = p.x, y = p.y, z = p.z;
     s.set(2.0*sc, 0.92*sc, 1.45*sc);
@@ -1314,7 +1314,7 @@ const lanternMat = new THREE.ShaderMaterial({
       c=mix(c, vec3(.105,.10,.095), vFog*.36);
       gl_FragColor=vec4(c*vOn, 1.); }` });
 // far lantern dots (cheap depth)
-const FDN = innerWidth < 700 ? 900 : 1600, fdp = new Float32Array(FDN*3), fdd = new Float32Array(FDN), fds = new Float32Array(FDN);
+const FDN = innerWidth < 700 ? 300 : 640, fdp = new Float32Array(FDN*3), fdd = new Float32Array(FDN), fds = new Float32Array(FDN);
 for (let i=0;i<FDN;i++){ const z = -100 - rnd()*120, sp2 = 30 + (-z)*0.9; fdp[i*3] = (rnd()*2-1)*sp2; fdp[i*3+1] = -6 + rnd()*(14 + (-z)*0.35); fdp[i*3+2] = z; fdd[i] = Math.min(.98, .55 + rnd()*.42); fds[i] = rnd(); }
 const fdg = new THREE.BufferGeometry(); fdg.setAttribute('position', new THREE.BufferAttribute(fdp,3)); fdg.setAttribute('aDel', new THREE.BufferAttribute(fdd,1)); fdg.setAttribute('aS', new THREE.BufferAttribute(fds,1));
 const fdMat = new THREE.ShaderMaterial({ transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, uniforms:{ uRev:{value:0}, uT:{value:0}, uPx:{value:renderer.getPixelRatio()} },
@@ -1700,7 +1700,8 @@ function tick(){
   renderer.toneMappingExposure = L(0.35, 1.0, ent < 50 ? sm(0.8, 1.2, ent) : intro);
   const asp = innerWidth/innerHeight;
   const dHero = 5.3 * Math.max(1, (asp < 1 ? 1.1 : 0.86)/asp);
-  camH.set(mouse.sx*0.35, Math.sin(0.2)*dHero + 0.15 - mouse.sy*0.15, Math.cos(0.2)*dHero); lkH.set(0, asp < 1 ? -0.05 : -0.3, 0);
+  const heroElevation = .36;   // see the desks and floor from the resting view, without tilting the box
+  camH.set(mouse.sx*0.35, Math.sin(heroElevation)*dHero + 0.15 - mouse.sy*0.15, Math.cos(heroElevation)*dHero); lkH.set(0, asp < 1 ? -0.05 : -0.3, 0);
   const port = clamp((1 - asp)/0.55, 0, 1), fovB = 31 + port*22;   // 0 on landscape, 1 on a typical phone
   const hfB = 2*Math.atan(Math.tan(fovB*Math.PI/360)*asp), Rfit = (BW*0.54)/Math.tan(hfB/2);
   const R = asp < 1 ? Rfit : 2.8 * Math.max(1, 1.08/asp), az = mouse.sx*0.05 + 0.06*Math.sin(sp*Math.PI*7), elv = 0.47 + port*0.13 + 0.03*Math.sin(sp*Math.PI*5) + mouse.sy*0.03;
